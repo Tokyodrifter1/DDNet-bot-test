@@ -1,4 +1,7 @@
 const DDRaceBot = require('neiky-ddracebot.js');
+const http = require('http');
+const url = require('url');
+const fs = require('fs');
 const readline = require('readline');
 
 const fulladdress = '57.128.201.180:8317';
@@ -250,6 +253,31 @@ rl.on('line', (input) => {
 
 process.on('SIGINT', () => {
     exitbot('Простите, надо отключиться~');
+});
+
+const server = http.createServer((req, res) => {
+    const parsed = url.parse(req.url, true);
+    if (parsed.pathname === '/') {
+        fs.readFile('./index.html', (err, data) => {
+            if (err) {
+                res.writeHead(500); return res.end('Ошибка загрузки страницы');
+            }
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(data);
+        });
+    } else if (parsed.pathname === '/input') {
+        const key = parsed.query.key;
+        if (key) movekey(key);
+        res.writeHead(200);
+        res.end('OK');
+    } else {
+        res.writeHead(404);
+        res.end('Not found');
+    }
+});
+
+server.listen(8080, () => {
+    console.log('🎮 Панель управления доступна на http://localhost:8080');
 });
 
 

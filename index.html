@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>✨ Управление ботом DDNet ✨</title>
+  <style>
+    body {
+      background: #f8f8ff;
+      font-family: 'Segoe UI', sans-serif;
+      text-align: center;
+      padding-top: 40px;
+    }
+    h2 {
+      font-size: 28px;
+      margin-bottom: 20px;
+    }
+    .btn {
+      font-size: 24px;
+      margin: 10px;
+      padding: 20px 40px;
+      border-radius: 16px;
+      background-color: #dde1ff;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .btn:active {
+      background-color: #b0b9ff;
+    }
+  </style>
+</head>
+<body>
+  <h2>🎮 DDNet Пульт управления ботом</h2>
+
+  <div>
+    <button class="btn" onmousedown="startKey('a')" onmouseup="stopKey()" onmouseleave="stopKey()">⬅️ Влево</button>
+    <button class="btn" onmousedown="startKey('w')" onmouseup="stopKey()" onmouseleave="stopKey()">⬆️ Прыжок</button>
+    <button class="btn" onmousedown="startKey('d')" onmouseup="stopKey()" onmouseleave="stopKey()">➡️ Вправо</button>
+    <button class="btn" onmousedown="startKey('s')" onmouseup="stopKey()" onmouseleave="stopKey()">⏹ Стоп</button>
+  </div>
+
+  <script>
+    let interval = null;
+
+    function startKey(key) {
+      sendKey(key); // сразу отправляем
+      interval = setInterval(() => sendKey(key), 150); // повторяем пока держим
+    }
+
+    function stopKey() {
+      clearInterval(interval);
+    }
+
+    function sendKey(key) {
+      fetch(`/input?key=${encodeURIComponent(key)}`).catch(e => {});
+    }
+  </script>
+</body>
+</html>
