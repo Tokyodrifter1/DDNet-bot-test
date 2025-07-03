@@ -41,6 +41,7 @@ const keyMap = {
   f: 'fire',
   n: 'nw',
   h: 'hook',
+  r: 'reset',
 };
 
 
@@ -132,28 +133,6 @@ function exitbot(text) {
     }, 1000);
 }
 
-function cmdreason(cmd) {
-    const textC = cmd.slice(1).toLowerCase().trim();
-
-    if (textC.startsWith(`m`)) {
-        if (textC.length > 3) {
-            client.game.Say("...");
-        } else {
-            if      (textC === 'm')    activemove.push('stop');
-            else if (textC === 'mr')   activemove.push('right');
-            else if (textC === 'ml')   activemove.push('left');
-            else if (textC === 'mj')   activemove.push('jump');
-            else if (textC === 'mf')   activemove.push('fire');
-            else if (textC === 'mnw')  activemove.push('nw');
-        }
-    } else if (textC.startsWith(`h`)) {
-        if (textC.length > 3) client.game.Say("...");
-        else {
-            if      (textC === 'h')   activemove.push('hook');
-        }
-    }
-}
-
 function movekey(key) {
   if (keyMap[key]) {
     activemove.push(keyMap[key]);
@@ -176,9 +155,6 @@ function activatemove() {
         else if (move === 'hook')  client.movement.Hook();
         else if (move === 'nw')    client.movement.NextWeapon();
     }
-    setTimeout(() => {
-            client.movement.Reset();
-    }, 100);
 }
 
 function Connectedtoserver() {
@@ -214,8 +190,6 @@ client.on('message_au_serveur', (msg) => {
     if (msg && typeof msg.message === 'string') {
         if (text === 'exit' || text === '${botName}: выйди') {
             exitbot('Окей, я отключюсь~');
-        } else if (text.startsWith(`.`)) {
-            cmdreason(text);
         } else if (nadatext(text, autormsg)) {
             sendmessagewithcoldown(`${autormsg}: ${getRandomCuteAnswer()}`);
         }
@@ -232,17 +206,14 @@ rl.on('line', (input) => {
         });
     } else if (cmd === 'bot2') {
         console.log('Рано пока что, бот2 еще не готов.');
-    } else if (cmd === 'botcmd') {
-        rl.question('Введите команду: ', (command) => {
-            cmdreason(command);
-        });
     } else if (cmd === 'help') {
         console.log('Доступные команды:');
         console.log('  exit - отключить бота');
         console.log('  say - отправить сообщение на сервер');
-        console.log('  botcmd - выполнить команду бота');
         console.log('  help - показать это сообщение');
-
+        console.log('  kill - убить бота');
+    } else if (cmd == 'kill') {
+        client.game.Kill();
     } else if (cmd) {
         movekey(cmd);
         console.log(`Активное движение: ${activemove.join(', ')}.`);
