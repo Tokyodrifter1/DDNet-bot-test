@@ -33,22 +33,6 @@ const client = new DDRaceBot.Client(serverAddress, port, botName, {
 let lastMessageTime = 0;
 const COOLDOWN_MS = 5000;
 
-const keyMap = {
-  d: 'right',
-  a: 'left',
-  w: 'jump',
-  s: 'stop',
-  f: 'fire',
-  n: 'nw',
-  h: 'hook',
-  r: 'reset',
-};
-
-
-let activemove = [];
-
-let isConnected = false;
-
 const ignoredNames = [
     "0374_bober",
     "Towa.",
@@ -133,80 +117,74 @@ function exitbot(text) {
     }, 1000);
 }
 
+
+let activeMoves = new Set();
+let activemove = [];
+let needfire = false;
+let xAim = 0;
+let yAim = 0;
+
+const keyMap = {
+  d: 'right',
+  a: 'left',
+  w: 'jump',
+  s: 'stop',
+  f: 'fire',
+  n: 'nw',
+  h: 'hook',
+  r: 'reset',
+  k: 'kill',
+    'x+': 'xaim+',
+    'y+': 'yaim+',
+    'x-': 'xaim-',
+    'y-': 'yaim-',
+};
+
+
 function movekey(key) {
-  if (keyMap[key]) {
-    activemove.push(keyMap[key]);
-  }
-}
-
-
-function activatemove() {
-    if (activemove.includes('stop')) {
+    const action = keyMap[key];
+    if (!action) return;
+    if (action === 'reset') {
+        activeMoves.clear();
         client.movement.Reset();
-        activemove.length = 0;
-        return;
-    }
-    while (activemove.length > 0) {
-        const move = activemove.shift();
-        if      (move === 'right') client.movement.RunRight();
-        else if (move === 'left')  client.movement.RunLeft();
-        else if (move === 'jump')  client.movement.Jump();
-        else if (move === 'fire')  client.movement.Fire();
-        else if (move === 'hook')  client.movement.Hook();
-        else if (move === 'nw')    client.movement.NextWeapon();
-    }
-}
-
-function Connectedtoserver() {
-    setInterval(() => {
-        client.game.Emote(2);
-    }, 500);
-    setInterval(() => {
-        activatemove();
-    }, 100);
-    console.log("Подключился!");
-    client.game.Say('Здравствуйте~');
-}
-
-client.on('message_au_serveur', (msg) => {
-    const utilisateur = msg.utilisateur?.InformationDuBot;
-    const autormsg = utilisateur?.name || false;
-    const text = msg.message.toLowerCase().trim();
-
-    if (!isConnected) {
-        isConnected = true;
-        Connectedtoserver();
-    }
-    if (autormsg) {
-        console.log('"' + autormsg + '" : ' + text);
+    } else if (action === 'kill') {
+        client.game.Kill();
     } else {
-        console.log('*** ' + text);
-        return;
-    }
-
-    if (autormsg === botName) {
-        return;
-    }
-    if (msg && typeof msg.message === 'string') {
-        if (text === 'exit' || text === '${botName}: выйди') {
-            exitbot('Окей, я отключюсь~');
-        } else if (nadatext(text, autormsg)) {
-            sendmessagewithcoldown(`${autormsg}: ${getRandomCuteAnswer()}`);
+        if (activeMoves.has(action)) {
+            activeMoves.delete(action);
+        } else {
+            activeMoves.add(action);
         }
     }
-});
+}
 
-rl.on('line', (input) => {
+function activatemove() {
+    client.movement.Reset();
+    activeMoves.forEach(move => {
+        if      (move === 'right') {client.movement.RunRight(); activeMoves.delete('left');}
+        else if (move === 'left' ) {client.movement.RunLeft(); activeMoves.delete('right');}
+        else if (move === 'jump' ) {client.movement.Jump(); setTimeout(() => {client.movement.Jump(false)}, 50); activeMoves.delete('jump');}
+        else if (move === 'fire' ) if (!needfire) {needfire = true;} else {needfire = false;}
+        else if (move === 'hook' ) client.movement.Hook();
+        else if (move === 'nw'   ) client.movement.NextWeapon();
+        else if (move === 'kill' ) { client.game.Kill(); activeMoves.delete('kill'); }
+        else if (move === 'xaim+') { xAim += 15; activeMoves.delete('xaim+'); }
+        else if (move === 'yaim+') { yAim += 15; activeMoves.delete('yaim+'); }
+        else if (move === 'xaim-') { xAim -= 15; activeMoves.delete('xaim-'); }
+        else if (move === 'yaim-') { yAim -= 15; activeMoves.delete('yaim-'); }
+    });
+}
+
+function inputreason(input) {
     const cmd = input.trim().toLowerCase();
     if (cmd === 'exit') {
         exitbot('Простите, надо отключиться~');
-    } else if (cmd === 'say') {
-        rl.question('Введите сообщение: ', (message) => {
+    } else if (cmd.startsWith('say ')) {
+        const message = cmd.slice(4).trim();
+        if (message) {
             client.game.Say(message);
-        });
-    } else if (cmd === 'bot2') {
-        console.log('Рано пока что, бот2 еще не готов.');
-    } else if (cmd === 'help') {
+        }
+    } else if (cmd == 'help') {
         console.log('Доступные команды:');
         console.log('  exit - отключить бота');
         console.log('  say - отправить сообщение на сервер');
@@ -214,12 +192,59 @@ rl.on('line', (input) => {
         console.log('  kill - убить бота');
     } else if (cmd == 'kill') {
         client.game.Kill();
+    } else if (cmd.startsWith('/')) {
+        client.game.Say(cmd);
     } else if (cmd) {
         movekey(cmd);
         console.log(`Активное движение: ${activemove.join(', ')}.`);
     } else {
         console.log('Ты обосрался, я не знаю такой команды.');
     }
+}
+
+client.on('connection_au_serveur_ddrace', () => {
+    console.log("Подключился!");
+    setInterval(() => {
+        client.game.Emote(2);
+    }, 500);
+    setInterval(() => {
+        xAim = Math.max(-100, Math.min(100, xAim));
+        yAim = Math.max(-100, Math.min(100, yAim));
+        activatemove();
+        client.movement.SetAim(xAim, yAim);
+        if (needfire) {client.movement.Fire();};
+    }, 100);
+    client.game.Say('Здравствуйте~');
+});
+
+client.on('disconnect', () => {});
+
+client.on('message_au_serveur', (msg) => {
+    const utilisateur = msg.utilisateur?.InformationDuBot;
+    const autormsg = utilisateur?.name || false;
+    const text = msg.message.toLowerCase().trim();
+
+    if (autormsg) {
+        console.log('"' + autormsg + '" : ' + text);
+    } else {
+        console.log('*** ' + text);
+        return;
+    }
+    if (autormsg === botName) {
+        return;
+    }
+
+    if (msg && typeof msg.message === 'string') {
+        if (autormsg === "0374_bober" || autormsg === 'd0030303' && text === 'exit' || text === '${botName}: выйди') {
+            // exitbot('Окей, я отключюсь~');
+        } else if (nadatext(text, autormsg)) {
+            sendmessagewithcoldown(`${autormsg}: ${getRandomCuteAnswer()}`);
+        }
+    }
+});
+
+rl.on('line', (input) => {
+    inputreason(input);
 });
 
 process.on('SIGINT', () => {
@@ -238,7 +263,11 @@ const server = http.createServer((req, res) => {
         });
     } else if (parsed.pathname === '/input') {
         const key = parsed.query.key;
-        if (key) movekey(key);
+        if (key && keyMap[key]) {
+            movekey(key);
+        } else if (key) {
+            inputreason(key);
+        }
         res.writeHead(200);
         res.end('OK');
     } else {
@@ -250,6 +279,5 @@ const server = http.createServer((req, res) => {
 server.listen(8080, () => {
     console.log('🎮 Панель управления доступна на http://localhost:8080');
 });
-
 
 client.joinDDRaceServer();
