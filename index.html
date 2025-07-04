@@ -69,6 +69,11 @@
       touch-action: none;
       cursor: pointer;
     }
+    #game-canvas {
+      background: #222;
+      margin-top: 30px;
+      border-radius: 12px;
+    }
   </style>
 </head>
 <body>
@@ -94,6 +99,7 @@
     </div>
     <div style="color:#aaa;font-size:14px;margin-top:8px;">Джойстик камеры</div>
   </div>
+  <canvas id="game-canvas" width="600" height="400" style="background:#222;margin-top:30px;border-radius:12px;"></canvas>
   <script>
     function sendKey(key) {
       fetch(`/input?key=${encodeURIComponent(key)}`).catch(e => {});
@@ -168,15 +174,15 @@
     const keyBindings = {
       ArrowLeft: 'a',    // Влево
       ArrowRight: 'd',   // Вправо
-      ArrowUp: 'w',      // Прыжок
-      ArrowDown: 's',    // (если нужно)
+      x: 'w',
       a: 'a',
       d: 'd',
-      w: 'w',
-      h: 'h',            // Хук
-      f: 'f',            // Fire
+      s: 'h',
+      h: 'h',
+      w: 'h',           // Хук
+      f: 'f',         // Fire
       k: 'k',            // Kill
-      // Добавьте другие клавиши по желанию
+      ' ': 'w',
     };
 
     let pressed = {};
@@ -198,6 +204,50 @@
         pressed[key] = false;
       }
     });
+
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    const scale = 0.1; // как и раньше
+
+    canvas.addEventListener('mousemove', function(e) {
+      const rect = canvas.getBoundingClientRect();
+      // координаты мыши относительно canvas
+      let x = e.clientX - rect.left;
+      let y = e.clientY - rect.top;
+      // пересчитываем так, чтобы (0,0) было в центре canvas
+      x = x - canvas.width / 2;
+      y = y - canvas.height / 2;
+      fetch(`/setaim?x=${Math.round(x)}&y=${Math.round(y)}`).catch(()=>{});
+    });
+
+    canvas.addEventListener('click', function() {
+      sendKey('h');
+    });
+
+    canvas.addEventListener('mouseup', function() {
+      sendKey('h');
+    });
+
+    function drawPlayer(x, y) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Преобразуем координаты Teeworlds в canvas
+      const cx = x * scale + canvas.width / 2;
+      const cy = canvas.height - (y * scale + 100); // y инвертирован для Teeworlds
+      ctx.beginPath();
+      ctx.arc(cx, cy, 15, 0, 2 * Math.PI);
+      ctx.fillStyle = '#ff69b4';
+      ctx.fill();
+    }
+
+    function update() {
+      fetch('/coords')
+        .then(r => r.json())
+        .then(({x, y}) => {
+          drawPlayer(x, y);
+        });
+      requestAnimationFrame(update);
+    }
+    update();
   </script>
 </body>
 </html>

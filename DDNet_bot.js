@@ -29,7 +29,7 @@ const client = new DDRaceBot.Client(serverAddress, port, botName, {
         country: -1
     }
 });
-
+let isConected = false;
 let lastMessageTime = 0;
 const COOLDOWN_MS = 5000;
 
@@ -203,7 +203,8 @@ function inputreason(input) {
 }
 
 client.on('connection_au_serveur_ddrace', () => {
-    console.log("Подключился!");
+    isConected = true;
+    console.log(`Подключился к серверу ${serverAddress}:${port} как ${botName}`);
     setInterval(() => {
         client.game.Emote(2);
     }, 500);
@@ -217,7 +218,7 @@ client.on('connection_au_serveur_ddrace', () => {
     client.game.Say('Здравствуйте~');
 });
 
-client.on('disconnect', () => {});
+client.on('disconnect', () => {isConected = false; console.log('Отключился от сервера.');});
 
 client.on('message_au_serveur', (msg) => {
     const utilisateur = msg.utilisateur?.InformationDuBot;
@@ -236,19 +237,26 @@ client.on('message_au_serveur', (msg) => {
 
     if (msg && typeof msg.message === 'string') {
         if (autormsg === "0374_bober" || autormsg === 'd0030303' && text === 'exit' || text === '${botName}: выйди') {
-            // exitbot('Окей, я отключюсь~');
+            // exitbot('Окей, я отключусь~');
         } else if (nadatext(text, autormsg)) {
             sendmessagewithcoldown(`${autormsg}: ${getRandomCuteAnswer()}`);
         }
     }
 });
 
-rl.on('line', (input) => {
-    inputreason(input);
-});
+let lastCoords = { x: 0, y: 0 };
 
-process.on('SIGINT', () => {
-    exitbot('Простите, надо отключиться~');
+// Парсим координаты из snapshot
+client.on('snapshot', (data) => {
+    // Ищем объект с type_id: 9 (character)
+    const charObj = data.find(obj => obj.type_id === 9 && obj.parsed && obj.parsed.character_core);
+    if (charObj) {
+        // Обычно character_core содержит x, y (или pos_x, pos_y)
+        // Но в твоём случае координаты, скорее всего, в charObj.data[0] и charObj.data[1]
+        lastCoords.x = charObj.data[0];
+        lastCoords.y = charObj.data[1];
+    }
+    // ...оставь console.log если нужно...
 });
 
 const server = http.createServer((req, res) => {
@@ -261,12 +269,24 @@ const server = http.createServer((req, res) => {
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end(data);
         });
+    } else if (parsed.pathname === '/coords') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(lastCoords));
     } else if (parsed.pathname === '/input') {
         const key = parsed.query.key;
         if (key && keyMap[key]) {
             movekey(key);
         } else if (key) {
             inputreason(key);
+        }
+        res.writeHead(200);
+        res.end('OK');
+    } else if (parsed.pathname === '/setaim') {
+        const x = parseInt(parsed.query.x, 10);
+        const y = parseInt(parsed.query.y, 10);
+        if (!isNaN(x) && !isNaN(y)) {
+            xAim = x;
+            yAim = y;
         }
         res.writeHead(200);
         res.end('OK');
@@ -281,3 +301,7 @@ server.listen(8080, () => {
 });
 
 client.joinDDRaceServer();
+
+process.on('SIGINT', () => {
+    exitbot('Простите, надо отключиться~');
+});
