@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "neiky-ddracebot.js": "^2.4.0"
+    "neiky-ddracebot.js": "^2.4.0",
+    "ws": "^8.18.3"
   }
 }

@@ -1,5 +1,7 @@
 const bot = require('./bot.js');
 const WebSocket = require('ws');
+
+// обработка выхода
 process.on('SIGINT', () => {
     bot.disconnectAllBots();
     setTimeout(() => {
@@ -7,12 +9,19 @@ process.on('SIGINT', () => {
     }, 1000);
 });
 
+// создаём подключение
+const ws = new WebSocket('ws://your-server-ip:8080'); // замени на настоящий адрес
 
-const ws = new WebSocket('ws://your-server-ip:8080');
+// когда подключение успешно
+ws.on('open', () => {
+    console.log('подключено к серверу');
+});
 
-ws.onmessage = function (event) {
-  const command = event.data;
-  console.log('команда:', command);
+// когда приходит сообщение от сервера
+ws.on('message', (data) => {
+    const command = data.toString(); // преобразуем буфер в строку
+    console.log('команда:', command);
+
     if (command.startsWith('vote ')) {
         const what = command.split(' ')[1];
         bot.vote(what);
@@ -34,11 +43,9 @@ ws.onmessage = function (event) {
             connected: isConnected
         }));
     }
-};
+});
 
-ws.onopen = () => {
-  console.log('подключено к серверу');
-};
-ws.onerror = (err) => {
-  console.error('ошибка соединения: ', err);
-};
+// обработка ошибок
+ws.on('error', (err) => {
+    console.error('ошибка соединения: ', err);
+});
