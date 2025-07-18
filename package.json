@@ -1,6 +1,27 @@
 {
   "dependencies": {
+    "franc": "^6.2.0",
     "neiky-ddracebot.js": "^2.4.0",
+    "openai": "^5.10.1",
     "ws": "^8.18.3"
-  }
+  },
+  "name": "ddnet-bot-test",
+  "version": "0.0.5",
+  "description": "В разработке.",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0374flop/DDNet-bot-test.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/0374flop/DDNet-bot-test/issues"
+  },
+  "homepage": "https://github.com/0374flop/DDNet-bot-test#readme"
 }

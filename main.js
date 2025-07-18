@@ -1,51 +1,28 @@
 const bot = require('./bot.js');
-const WebSocket = require('ws');
+const fs = require('fs');
+const path = require('path');
 
-// обработка выхода
-process.on('SIGINT', () => {
-    bot.disconnectAllBots();
-    setTimeout(() => {
-        process.exit(0);
-    }, 1000);
-});
+const serverListPath = path.join(__dirname, 'DDList.json');
+const serverList =  ["45.141.57.31:8360"] || JSON.parse(fs.readFileSync(serverListPath, 'utf8'));
 
-// создаём подключение
-const ws = new WebSocket('ws://your-server-ip:8080'); // замени на настоящий адрес
-
-// когда подключение успешно
-ws.on('open', () => {
-    console.log('подключено к серверу');
-});
-
-// когда приходит сообщение от сервера
-ws.on('message', (data) => {
-    const command = data.toString(); // преобразуем буфер в строку
-    console.log('команда:', command);
-
-    if (command.startsWith('vote ')) {
-        const what = command.split(' ')[1];
-        bot.vote(what);
-    } else if (command.startsWith('createvote ')) {
-        const [what, ...reasonParts] = command.split(' ').slice(1);
-        const reason = reasonParts.join(' ');
-        bot.createvote(what, reason);
-    } else if (command.startsWith('connectbot ')) {
-        const [IPport, name] = command.split(' ').slice(1);
-        bot.Connectbot(IPport, name, true);
-    } else if (command === 'disconnect') {
-        bot.disconnectAllBots();
-    } else if (command.startsWith('isBotConnected ')) {
-        const botName = command.split(' ')[1];
-        const isConnected = bot.isBotConnected(botName);
-        ws.send(JSON.stringify({
-            type: 'botStatus',
-            name: botName,
-            connected: isConnected
-        }));
+async function main() {
+    for (const server of serverList) {
+        if (server) {
+            bot.Connectbot(server, "Rio", true, true);
+        } else {
+            console.error(`Invalid server format: ${server}`);
+       }
     }
-});
+}
 
-// обработка ошибок
-ws.on('error', (err) => {
-    console.error('ошибка соединения: ', err);
+async function handleExit() {
+    await bot.disconnectAllBots();
+    process.exit(0);
+}
+
+process.on('SIGINT', () => {
+    handleExit();
 });
+    
+
+main();
