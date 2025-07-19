@@ -5,7 +5,8 @@ const { franc } = require('franc');
 const ai = require("./ai.js");
 
 let activebots = [];
-const COOLDOWN_MS = 10000;
+const COOLDOWN_MS = 5000;
+const COOLDOWN_MS_ai = 10000;
 let lastMessageTime = 0;
 
 const serverListPath = path.join(__dirname, 'DDList.json');
@@ -107,28 +108,25 @@ function getPort(address) {
     return parseInt(parts[1], 10);
 }
 
-async function createBot(fulladdress, botName, chat, answer) {
+async function createBot(fulladdress, botName, chat, parameter) {
     const serverIp = getIP(fulladdress);
     const serverPort = getPort(fulladdress);
     if (!serverIp || !serverPort) {
         console.error('IP or port not specified');
         return;
     }
+    const answerOption = parameter?.answer?.answer || false;
+    const aiOption = parameter?.answer?.ai || false;
+    const setAi = parameter?.setAi || false;
+    const reconnect = parameter?.reconnect || false;
+    let aiEnabled = aiOption;
 
-    const client = new DDRaceBot.Client(serverIp, serverPort, botName, {
-        identity: {
-            name: botName,
-            clan: "Towa Team",
-            skin: "Astolfofinho",
-            use_custom_color: 1,
-            color_body: 16711680,
-            color_feet: 16711680,
-            country: -1
-        }
-    });
+    console.log(`Создание бота ${botName}: answerOption=${answerOption}, aiOption=${aiOption} fulladdress=${fulladdress}`);
+
+    const client = new DDRaceBot.Client(serverIp, serverPort, botName, { identity: parameter.identity });
 
     let isConnected = false;
-    const COOLDOWN_MS_bot = COOLDOWN_MS;
+    let COOLDOWN_MS_bot = COOLDOWN_MS;
     let lastMessageTime_bot = lastMessageTime;
 
     function sendmessagewithcoldown(text) {
@@ -141,34 +139,31 @@ async function createBot(fulladdress, botName, chat, answer) {
 
     async function ai_chat(autormsg, text) {
         if (Date.now() - lastMessageTime_bot >= COOLDOWN_MS_bot) {
-            const aiResponse = await ai.getAIResponse(autormsg, text);
+            client.movement.FlagChatting(true);
+            const aiResponse = await ai.getAIResponse(autormsg, text, botName);
             sendmessagewithcoldown(`${autormsg}: ${aiResponse}`);
+            client.movement.FlagChatting(false);
         }
     }
 
-async function chat(msg, botName, answer) {
+async function chat(msg, botName, aiEnabled) {
     const utilisateur = msg.utilisateur?.InformationDuBot;
     const autormsg = utilisateur?.name || false;
     const text = msg.message.trim();
+    if (!autormsg || autormsg === botName) return;
 
-    // if (!autormsg) return;
-    if (autormsg) {
-        console.log('msg "' + autormsg + '" : ' + text);
-    } else {
-        console.log('msg *** ' + text);
-        return;
-    }
-    if (autormsg === botName) return;
-
-    if (answer && msg && typeof msg.message === 'string') {
-        sendmessagewithcoldown(`${autormsg}: ${getRandomCuteAnswer(text)}`)
-        // ai_chat(autormsg, text);
+    if (msg && typeof msg.message === 'string') {
+        if (aiEnabled) {
+            ai_chat(autormsg, text);
+        } else {
+            sendmessagewithcoldown(`${autormsg}: ${getRandomCuteAnswer(text)}`);
+        }
     }
 }
 
     client.on('connection_au_serveur_ddrace', () => {
         isConnected = true;
-        console.log(`Bot ${botName} connected to server`);
+        console.log(`Bot ${botName} connected to server fulladdress=${fulladdress}`);
         activebots.push({ name: botName, client });
         setInterval(() => {
             try {
@@ -181,13 +176,56 @@ async function chat(msg, botName, answer) {
         }, 500);
     });
 
-    client.on('disconnect', () => {
+    client.on('disconnect', (reason) => {
         isConnected = false;
-        console.log(`Bot ${botName} client.on(disconnected) from server`);
+        console.log(`Bot ${botName} client.on(disconnected) from server, reason: ${reason} fulladdress=${fulladdress}`);
+        if (reason.startsWith('You have been banned')) {
+            console.log(`Bot ${botName} was banned.`);
+            activebots = activebots.filter(bot => bot.name !== botName);
+        } else if (reconnect) {
+            setTimeout(() => {
+                client.joinDDRaceServer();
+            }, 7000);
+        }
     });
 
     client.on('message_au_serveur', (msg) => {
-        if (chat) chat(msg, botName, answer);
+        const utilisateur = msg.utilisateur?.InformationDuBot;
+        const autormsg = utilisateur?.name || false;
+        const text = msg.message.trim();
+
+        if (text.startsWith('!')) {
+            console.log(`Команда от ${autormsg}: ${text}`);
+            if (text === '!setAi') {
+                if (setAi) {
+                    aiEnabled = !aiEnabled;
+                    if (aiEnabled) {
+                        COOLDOWN_MS_bot = COOLDOWN_MS_ai;
+                    } else {
+                        COOLDOWN_MS_bot = COOLDOWN_MS;
+                    }
+                    console.log(`AI для ${botName} ${aiEnabled ? 'включен' : 'выключен'}`);
+                } else {
+                    console.log(`AI не поддерживается для ${botName}`);
+                }
+            } else if (text === '!leave') {
+                disconnectBotbyname(botName);
+            }
+            return;
+        }
+        if (answerOption) chat(msg, botName, aiEnabled);
+
+        if (chat) {
+            if (msg.message && typeof msg.message === 'string') {
+                if (autormsg) {
+                    console.log(`msg ${fulladdress} "` + autormsg + '" : ' + text);
+                } else {
+                    console.log(`msg ${fulladdress} *** ` + text);
+                }
+            } else {
+                console.error(`Invalid message format: ${msg}`);
+            }
+        }
     });
 
     try {
@@ -215,7 +253,22 @@ async function disconnectAllBots() {
     }
 }
 
-
+async function disconnectBotbyname(botName) {
+    const botIndex = activebots.findIndex(bot => bot.name === botName);
+    if (botIndex !== -1) {
+        const bot = activebots[botIndex];
+        try {
+            console.log(`Disconnecting bot ${botName}`);
+            await bot.client.Disconnect();
+            activebots.splice(botIndex, 1);
+            console.log(`Bot ${botName} disconnected successfully`);
+        } catch (error) {
+            console.error(`Error disconnecting ${botName}:`, error);
+        }
+    } else {
+        console.log(`Bot ${botName} not found`);
+    }
+}
 
 async function vote(what) {
     for (const bot of activebots) {
@@ -247,9 +300,9 @@ function isBotConnected(botName) {
     return activebots.some(bot => bot.name === botName);
 }
 
-async function Connectbot(IPport, botName, chat, answer) {
+async function Connectbot(IPport, botName, chat, parameter) {
     try {
-        await createBot(IPport, botName, chat, answer);
+        await createBot(IPport, botName, chat, parameter);
     } catch (error) {
         console.error("Initial bot creation failed:", error);
     }
@@ -259,7 +312,7 @@ async function Connectbot(IPport, botName, chat, answer) {
             const intervalId = setInterval(async () => {
                 if (!isBotConnected(botName)) {
                     try {
-                        await createBot(IPport, botName, chat, answer);
+                        createBot(IPport, botName, chat, parameter);
                     } catch (e) {
                         console.error(`Error reconnecting bot ${botName}:`, e);
                     }
@@ -273,6 +326,7 @@ async function Connectbot(IPport, botName, chat, answer) {
 
 module.exports = {
     Connectbot,
+    createBot,
     disconnectAllBots,
     isBotConnected,
     vote,

@@ -3,7 +3,7 @@ const fs = require('fs').promises;
 const path = require('path');
 
 const openai = new OpenAI({
-  apiKey: "sk-or-v1-...",
+  apiKey: "sk-or-v1...",
   baseURL: "https://openrouter.ai/api/v1",
 });
 
@@ -38,6 +38,7 @@ async function saveCurrentChat(chat) {
 
 async function getAIResponse(message, sender, botName) {
   try {
+    console.log(`Запрос к ИИ: sender=${sender}, message=${message}, botName=${botName}`);
     const memory = await loadMemory();
     const currentChat = await loadCurrentChat();
 
@@ -49,7 +50,16 @@ async function getAIResponse(message, sender, botName) {
     const conversationHistory = [
       { 
         role: "system", 
-        content: `Ты милая аниме девушка в общем чате игрового сервера игры DDNet. Отвечай в дружелюбном, тёплом и игривом тоне, как персонаж из аниме. Используй милые выражения, избегай формальности. Отвечай на русском, если сообщение на русском, или на английском, если на английском. Учитывай контекст общего чата, ответы должны быть уместными и соответствовать тону общения. Если кто-то тебя обзывает, отвечай максимально грубо, они заслуживают етого. Для спаравки, тебя зовут ${botName}. Не используй емодзи.`
+        content: `Ты милая аниме девушка в общем чате игрового сервера игры DDNet.
+        Не обращай внимания на то, что ето игра, представь что ты просто в чате а не игре.
+        То что ето игра только для того чтобы ты понимала контекст.
+        Отвечай в дружелюбном, тёплом и игривом тоне, как персонаж из аниме если тебя не обзывают. 
+        Используй милые выражения, только если тебя не обзывают. 
+        Отвечай на русском, если сообщение на русском, или на английском, если на английском. 
+        Учитывай контекст общего чата, ответы должны быть уместными и соответствовать тону общения. 
+        Если кто-то тебя обзывает, отвечай максимально грубо, можешь посылать их далеко и надолго, они заслуживают етого. 
+        Для справки, тебя зовут ${botName}. Не используй емодзи совсем.
+        `
       }];
     // Сохраняем сообщение и ответ в память
     memory.push({ role: "user", content: `${sender}: ${message}` });
@@ -84,4 +94,20 @@ async function getAIResponse(message, sender, botName) {
   }
 }
 
-module.exports = { getAIResponse };
+async function clearMemoryai() {
+    const memoryPath = path.join(__dirname, 'memory.json');
+    const currentChatPath = path.join(__dirname, 'current_chat.json');
+    try {
+        await fs.unlink(memoryPath);
+        await fs.unlink(currentChatPath);
+        console.log('Memory and current chat cleared successfully.');
+    } catch (error) {
+        if (error.code !== 'ENOENT') { // Игнорировать ошибку, если файл не существует
+            console.error('Error clearing memory or current chat:', error);
+        } else {
+            console.log('Memory or current chat files not found, skipping deletion.');
+        }
+    }
+}
+
+module.exports = { getAIResponse, clearMemoryai };
