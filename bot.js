@@ -8,6 +8,13 @@ let activebots = [];
 const COOLDOWN_MS = 5000;
 const COOLDOWN_MS_ai = 10000;
 let lastMessageTime = 0;
+let botCounter = 0;
+let botFreezeStates = new Map(); // Хранит состояние заморозки для каждого бота
+
+function generateUniqueBotName(baseName) {
+    botCounter++;
+    return `${baseName}${botCounter}`;
+}
 
 const serverListPath = path.join(__dirname, 'DDList.json');
 const serverList = JSON.parse(fs.readFileSync(serverListPath, 'utf8'));
@@ -121,18 +128,33 @@ async function createBot(fulladdress, botName, chat, parameter) {
     const reconnect = parameter?.reconnect || false;
     let aiEnabled = aiOption;
 
-    console.log(`Создание бота ${botName}: answerOption=${answerOption}, aiOption=${aiOption} fulladdress=${fulladdress}`);
+    // Генерируем уникальное имя бота
+    const uniqueBotName = generateUniqueBotName(botName);
 
-    const client = new DDRaceBot.Client(serverIp, serverPort, botName, { identity: parameter.identity });
+    console.log(`createBot ${uniqueBotName}: answerOption=${answerOption}, aiOption=${aiOption} fulladdress=${fulladdress}`);
+
+    const client = new DDRaceBot.Client(serverIp, serverPort, uniqueBotName, { identity: parameter.identity });
+    
+    // Увеличиваем лимит слушателей для предотвращения предупреждений
+    if (client.socket) {
+        client.socket.setMaxListeners(20);
+    }
 
     let isConnected = false;
     let COOLDOWN_MS_bot = COOLDOWN_MS;
     let lastMessageTime_bot = lastMessageTime;
+    let emoteInterval = null; // Для очистки setInterval
 
     function sendmessagewithcoldown(text) {
     const currentTime = Date.now();
     if (currentTime - lastMessageTime_bot >= COOLDOWN_MS_bot) {
-        client.game.Say(text);
+        client.movement.FlagChatting(true);
+        setTimeout(() => {
+            setTimeout(() => {
+                client.game.Say(text);
+                client.movement.FlagChatting(false);
+            }, Math.random() * 100);
+        }, Math.random() * 1000);
         lastMessageTime_bot = currentTime;
     }
     }
@@ -146,46 +168,101 @@ async function createBot(fulladdress, botName, chat, parameter) {
         }
     }
 
-async function chat(msg, botName, aiEnabled) {
-    const utilisateur = msg.utilisateur?.InformationDuBot;
-    const autormsg = utilisateur?.name || false;
-    const text = msg.message.trim();
-    if (!autormsg || autormsg === botName) return;
+    async function handleChat(msg, botName, aiEnabled) {
+        const utilisateur = msg.utilisateur?.InformationDuBot;
+        const autormsg = utilisateur?.name || false;
+        const text = msg.message.trim();
+        if (!autormsg || autormsg === botName) return;
 
-    if (msg && typeof msg.message === 'string') {
-        if (aiEnabled) {
-            ai_chat(autormsg, text);
-        } else {
-            sendmessagewithcoldown(`${autormsg}: ${getRandomCuteAnswer(text)}`);
+        if (msg && typeof msg.message === 'string') {
+            if (aiEnabled) {
+                ai_chat(autormsg, text);
+            } else {
+                sendmessagewithcoldown(`${autormsg}: ${getRandomCuteAnswer(text)}`);
+            }
         }
     }
-}
+
+    // Функция для очистки ресурсов бота
+    function cleanupBot() {
+        if (emoteInterval) {
+            clearInterval(emoteInterval);
+            emoteInterval = null;
+        }
+        isConnected = false;
+        botFreezeStates.delete(uniqueBotName);
+        // Удаляем бота из активного списка
+        const botIndex = activebots.findIndex(bot => bot.name === uniqueBotName);
+        if (botIndex !== -1) {
+            activebots.splice(botIndex, 1);
+        }
+    }
 
     client.on('connection_au_serveur_ddrace', () => {
         isConnected = true;
-        console.log(`Bot ${botName} connected to server fulladdress=${fulladdress}`);
-        activebots.push({ name: botName, client });
-        setInterval(() => {
+        console.log(`Bot ${uniqueBotName} connected to server fulladdress=${fulladdress}`);
+        activebots.push({ name: uniqueBotName, client });
+        botFreezeStates.set(uniqueBotName, false); // Инициализируем состояние заморозки
+        
+        // Создаем setInterval и сохраняем ссылку для очистки
+        emoteInterval = setInterval(() => {
             try {
                 if (isConnected) {
                     client.game.Emote(2);
+                } else {
+                    // Если бот отключен, очищаем интервал
+                    if (emoteInterval) {
+                        clearInterval(emoteInterval);
+                        emoteInterval = null;
+                    }
                 }
             } catch (error) {
-                console.error(`Error sending emote for ${botName}:`, error);
+                console.error(`Error sending emote for ${uniqueBotName}:`, error);
+                // При ошибке тоже очищаем интервал
+                if (emoteInterval) {
+                    clearInterval(emoteInterval);
+                    emoteInterval = null;
+                }
             }
         }, 500);
     });
 
     client.on('disconnect', (reason) => {
-        isConnected = false;
-        console.log(`Bot ${botName} client.on(disconnected) from server, reason: ${reason} fulladdress=${fulladdress}`);
+        console.log(`Bot ${uniqueBotName} client.on(disconnected) from server, reason: ${reason} fulladdress=${fulladdress}`);
+        
+        // Очищаем ресурсы
+        cleanupBot();
+        
         if (reason.startsWith('You have been banned')) {
-            console.log(`Bot ${botName} was banned.`);
-            activebots = activebots.filter(bot => bot.name !== botName);
-        } else if (reconnect) {
+            console.log(`Bot ${uniqueBotName} was banned.`);
+            console.log(`Bot ${uniqueBotName} will reconnect in 400000ms`);
             setTimeout(() => {
                 client.joinDDRaceServer();
-            }, 7000);
+            }, 400000);
+        } else if (reconnect) {
+            let reconnectTime = Math.floor(Math.random() * 10000) + 10000;
+            if (reason.startsWith('Too many connections in a short time')) {
+                reconnectTime = 20000;
+            } else if (reason.startsWith('This server is full')) {
+                reconnectTime = 40000;
+            }
+            console.log(`Bot ${uniqueBotName} will reconnect in ${reconnectTime}ms`);
+            setTimeout(() => {
+                client.joinDDRaceServer();
+            }, reconnectTime);
+        }
+    });
+
+    client.on('snapshot', (snapshot) => {
+        // Обновляем состояние заморозки бота на основе снапшота
+        try {
+            const myDDNetChar = client.SnapshotUnpacker.getObjExDDNetCharacter(client.SnapshotUnpacker.OwnID);
+            if (myDDNetChar) {
+                const isFrozen = myDDNetChar.m_FreezeEnd !== 0;
+                botFreezeStates.set(uniqueBotName, isFrozen);
+            }
+        } catch (error) {
+            console.error(`Error updating freeze state for ${uniqueBotName}:`, error);
         }
     });
 
@@ -204,16 +281,16 @@ async function chat(msg, botName, aiEnabled) {
                     } else {
                         COOLDOWN_MS_bot = COOLDOWN_MS;
                     }
-                    console.log(`AI для ${botName} ${aiEnabled ? 'включен' : 'выключен'}`);
+                    console.log(`AI для ${uniqueBotName} ${aiEnabled ? 'включен' : 'выключен'}`);
                 } else {
-                    console.log(`AI не поддерживается для ${botName}`);
+                    console.log(`AI не поддерживается для ${uniqueBotName}`);
                 }
             } else if (text === '!leave') {
-                disconnectBotbyname(botName);
+                disconnectBotbyname(uniqueBotName);
             }
             return;
         }
-        if (answerOption) chat(msg, botName, aiEnabled);
+        if (answerOption) handleChat(msg, uniqueBotName, aiEnabled);
 
         if (chat) {
             if (msg.message && typeof msg.message === 'string') {
@@ -228,17 +305,20 @@ async function chat(msg, botName, aiEnabled) {
         }
     });
 
+    client.movement.SetAim()
+
     try {
         await client.joinDDRaceServer();
     } catch (error) {
-        console.error(`Failed to connect ${botName}:`, error);
-        activebots = activebots.filter(bot => bot.name !== botName);
+        console.error(`Failed to connect ${uniqueBotName}:`, error);
+        cleanupBot(); // Очищаем ресурсы при ошибке подключения
     }
 }
 
 async function disconnectAllBots() {
-    const bots = activebots;
+    const bots = [...activebots]; // Создаем копию массива
     activebots = [];
+    botFreezeStates.clear(); // Очищаем все состояния заморозки
 
     console.log(`Attempting to disconnect ${bots.length} bots`);
 
@@ -251,6 +331,9 @@ async function disconnectAllBots() {
             console.error(`Error disconnecting ${bot.name}:`, error);
         }
     }
+    
+    // Принудительная очистка всех таймеров
+    console.log('All bots disconnected, resources cleaned up');
 }
 
 async function disconnectBotbyname(botName) {
@@ -260,10 +343,13 @@ async function disconnectBotbyname(botName) {
         try {
             console.log(`Disconnecting bot ${botName}`);
             await bot.client.Disconnect();
-            activebots.splice(botIndex, 1);
-            console.log(`Bot ${botName} disconnected successfully`);
+            // Очистка ресурсов произойдет в обработчике disconnect
+            console.log(`Bot ${botName} disconnect initiated`);
         } catch (error) {
             console.error(`Error disconnecting ${botName}:`, error);
+            // Принудительная очистка при ошибке
+            activebots.splice(botIndex, 1);
+            botFreezeStates.delete(botName);
         }
     } else {
         console.log(`Bot ${botName} not found`);
@@ -300,37 +386,72 @@ function isBotConnected(botName) {
     return activebots.some(bot => bot.name === botName);
 }
 
-async function Connectbot(IPport, botName, chat, parameter) {
-    try {
-        await createBot(IPport, botName, chat, parameter);
-    } catch (error) {
-        console.error("Initial bot creation failed:", error);
-    }
-
-    setTimeout(() => {
-        if (!isBotConnected(botName)) {
-            const intervalId = setInterval(async () => {
-                if (!isBotConnected(botName)) {
-                    try {
-                        createBot(IPport, botName, chat, parameter);
-                    } catch (e) {
-                        console.error(`Error reconnecting bot ${botName}:`, e);
-                    }
-                } else {
-                    clearInterval(intervalId);
-                }
-            }, 6000);
-        }
-    }, 6000);
+function getAllActiveBots() {
+    return activebots.map(bot => bot.name);
 }
 
+function isFreezeBot(botName) {
+    return botFreezeStates.get(botName) || false;
+}
+
+
+
+async function sendmessage(text, botName) {
+    if (botName) {
+        // Отправляем сообщение только указанному боту
+        const bot = activebots.find(bot => bot.name === botName);
+        if (bot && bot.client && bot.client.game) {
+            bot.client.game.Say(text);
+            console.log(`Message sent by ${botName}: ${text}`);
+        } else {
+            console.log(`Bot ${botName} not found or not connected`);
+        }
+    } else {
+        // Отправляем сообщение всем ботам
+        for (const bot of activebots) {
+            if (bot.client && bot.client.game) {
+                bot.client.game.Say(text);
+            }
+        }
+        console.log(`Message sent by all bots: ${text}`);
+    }
+}
+
+async function flagpalka(botName) {
+    const bot = activebots.find(bot => bot.name === botName);
+    if (bot) {
+        bot.client.movement.FlagHookline(true);
+        setTimeout(() => {
+            bot.client.movement.FlagHookline(false);
+        }, 100);
+    }
+}
+
+// Обработчик для корректного завершения процесса
+process.on('SIGINT', async () => {
+    console.log('\nReceived SIGINT, shutting down gracefully...');
+    await disconnectAllBots();
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    console.log('\nReceived SIGTERM, shutting down gracefully...');
+    await disconnectAllBots();
+    process.exit(0);
+});
+
 module.exports = {
-    Connectbot,
     createBot,
     disconnectAllBots,
     isBotConnected,
+    getAllActiveBots,
+    isFreezeBot,
     vote,
+    flagpalka,
     createvote,
+    sendmessage,
     getIP,
-    getPort
+    getPort,
+    disconnectBotbyname,
+    activebots
 };
