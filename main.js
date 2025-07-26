@@ -31,13 +31,14 @@ async function main() {
 
 async function handleExit() {
     await bot.disconnectAllBots();
-    process.exit(0);
+    setTimeout( () => {
+         process.exit(1)
+    }, 1000)
 }
 
 process.on('SIGINT', () => {
     handleExit();
 });
-    
 
 main();
 
