@@ -163,6 +163,8 @@ async function createBot(fulladdress, botName, chat, parameter) {
         if (Date.now() - lastMessageTime_bot >= COOLDOWN_MS_bot) {
             client.movement.FlagChatting(true);
             const aiResponse = await ai.getAIResponse(autormsg, text, botName);
+	    let ret
+            if (aiResponse) ret = aiResponse; else ret = 'Бота делал бедняк по етому ИИ не доступен пока что.'
             sendmessagewithcoldown(`${autormsg}: ${aiResponse}`);
             client.movement.FlagChatting(false);
         }
@@ -304,8 +306,6 @@ async function createBot(fulladdress, botName, chat, parameter) {
             }
         }
     });
-
-    client.movement.SetAim()
 
     try {
         await client.joinDDRaceServer();

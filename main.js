@@ -12,7 +12,7 @@ async function main() {
     ai.clearMemoryai();
     for (const server of serverList) {
         if (server) {
-            bot.createBot(server, botName, false, { answer: { answer: true, ai: false }, setAi: true, reconnect: true,
+            bot.createBot(server, botName, true, { answer: { answer: true, ai: false }, setAi: true, reconnect: true,
         identity: {
             name: botName,
             clan: ".",

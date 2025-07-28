@@ -90,7 +90,7 @@ async function getAIResponse(message, sender, botName) {
     return response;
   } catch (error) {
     console.error("Ошибка при получении ответа ИИ:", error);
-    return "Уваа~ Что-то пошло не так, прости! >.<";
+    return false;
   }
 }
 
