@@ -163,8 +163,6 @@ async function createBot(fulladdress, botName, chat, parameter) {
         if (Date.now() - lastMessageTime_bot >= COOLDOWN_MS_bot) {
             client.movement.FlagChatting(true);
             const aiResponse = await ai.getAIResponse(autormsg, text, botName);
-	    let ret
-            if (aiResponse) ret = aiResponse; else ret = 'Бота делал бедняк по етому ИИ не доступен пока что.'
             sendmessagewithcoldown(`${autormsg}: ${aiResponse}`);
             client.movement.FlagChatting(false);
         }
@@ -275,9 +273,10 @@ async function createBot(fulladdress, botName, chat, parameter) {
 
         if (text.startsWith('!')) {
             console.log(`Команда от ${autormsg}: ${text}`);
-            if (text === '!setAi') {
+            if (text.startsWith('!setAi')) {
                 if (setAi) {
-                    aiEnabled = !aiEnabled;
+		    if (text === '!setAit') aiEnabled = true;
+		    if (text === '!setAif') aiEnabled = false;
                     if (aiEnabled) {
                         COOLDOWN_MS_bot = COOLDOWN_MS_ai;
                     } else {
