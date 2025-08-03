@@ -288,7 +288,17 @@ async function createBot(fulladdress, botName, chat, parameter) {
                 }
             } else if (text === '!leave') {
                 disconnectBotbyname(uniqueBotName);
+            } else if (text.startsWith('!say ')) {
+                const message = text.substring(5).trim();
+                if (message) {
+                console.log(`Говорю "/w ${autormsg} "${message}" скоро будет сказан..."`);
+                sendmessagewithcoldown(`/w \"${autormsg}\" "${message}" скоро будет сказан...`);
+                setTimeout(() => {
+                 sendmessagewithcoldown(message);
+                }, 5500);
             }
+        }
+		// Added command !say with logging
             return;
         }
         if (answerOption) handleChat(msg, uniqueBotName, aiEnabled);
