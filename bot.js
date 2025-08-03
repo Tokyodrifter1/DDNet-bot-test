@@ -19,6 +19,81 @@ function generateUniqueBotName(baseName) {
 const serverListPath = path.join(__dirname, 'DDList.json');
 const serverList = JSON.parse(fs.readFileSync(serverListPath, 'utf8'));
 
+// White and Black list
+const WHITE_LIST_PATH = path.join(__dirname, 'white-list.json');
+const BLACK_LIST_PATH = path.join(__dirname, 'black-list.json');
+function loadList(listPath) {
+    try {
+        if (fs.existsSync(listPath)) {
+            const data = fs.readFileSync(listPath, 'utf8');
+            return JSON.parse(data);
+        }
+        return [];
+    } catch (error) {
+        console.error(`Error loading list from ${listPath}:`, error);
+        return [];
+    }
+}
+function isPlayerInList(playerName, listPath) {
+    const normalizedPlayer = playerName.toLowerCase().trim();
+    const list = loadList(listPath);
+    
+    return list.some(player => 
+        player.toLowerCase().trim() === normalizedPlayer
+    );
+}
+// White list
+function InWhiteList(playerName) {
+    return isPlayerInList(playerName, WHITE_LIST_PATH);
+}
+// Black list
+function InBlackList(playerName) {
+    return isPlayerInList(playerName, BLACK_LIST_PATH);
+}
+
+function addToWhiteList(playerName) {
+    const list = loadList(WHITE_LIST_PATH);
+    if (!list.includes(playerName)) {
+        list.push(playerName);
+        fs.writeFileSync(WHITE_LIST_PATH, JSON.stringify(list, null, 2));
+    }
+}
+
+function removeFromWhiteList(playerName) {
+    try {
+        const whitelist = loadList(WHITE_LIST_PATH);
+        const updatedList = whitelist.filter(name => name.toLowerCase() !== playerName.toLowerCase());
+        fs.writeFileSync(WHITE_LIST_PATH, JSON.stringify(updatedList, null, 2));
+        return true;
+    } catch (error) {
+        console.error('Ошибка при удалении из белого списка:', error);
+        return false;
+    }
+}
+
+function removeFromBlackList(playerName) {
+    try {
+        const whitelist = loadList(BLACK_LIST_PATH);
+        const updatedList = whitelist.filter(name => name.toLowerCase() !== playerName.toLowerCase());
+        fs.writeFileSync(BLACK_LIST_PATH, JSON.stringify(updatedList, null, 2));
+        return true;
+    } catch (error) {
+        console.error('Ошибка при удалении из белого списка:', error);
+        return false;
+    }
+}
+
+function addToBlackList(playerName) {
+    const list = loadList(BLACK_LIST_PATH);
+    if (!list.includes(playerName)) {
+        list.push(playerName);
+        fs.writeFileSync(BLACK_LIST_PATH, JSON.stringify(list, null, 2));
+    }
+}
+
+
+
+
 const cuteAnswers_ru = [
     "Ты такой милый~",
     "Я не могу перестать думать о тебе…",
@@ -173,7 +248,10 @@ async function createBot(fulladdress, botName, chat, parameter) {
         const autormsg = utilisateur?.name || false;
         const text = msg.message.trim();
         if (!autormsg || autormsg === botName) return;
-
+        if (InBlackList(autormsg)) {
+            console.log(`${autormsg} говорит, но он в муте, игнорируем~`);
+            return
+            }
         if (msg && typeof msg.message === 'string') {
             if (aiEnabled) {
                 ai_chat(autormsg, text);
@@ -266,63 +344,131 @@ async function createBot(fulladdress, botName, chat, parameter) {
         }
     });
 
-    client.on('message_au_serveur', (msg) => {
-        const utilisateur = msg.utilisateur?.InformationDuBot;
-        const autormsg = utilisateur?.name || false;
-        const text = msg.message.trim();
+client.on('message_au_serveur', (msg) => {
+    const utilisateur = msg.utilisateur?.InformationDuBot;
+    const autormsg = utilisateur?.name || false;
+    const text = msg.message.trim();
 
-        if (text.startsWith('!')) {
-            console.log(`Команда от ${autormsg}: ${text}`);
-            if (text.startsWith('!setAi')) {
-                if (setAi) {
-		    if (text === '!setAit') aiEnabled = true;
-		    if (text === '!setAif') aiEnabled = false;
-                    if (aiEnabled) {
-                        COOLDOWN_MS_bot = COOLDOWN_MS_ai;
-                    } else {
-                        COOLDOWN_MS_bot = COOLDOWN_MS;
-                    }
-                    console.log(`AI для ${uniqueBotName} ${aiEnabled ? 'включен' : 'выключен'}`);
+    if (text.startsWith('!')) {
+        console.log(`Команда от ${autormsg}: ${text}`);
+
+        if (text.startsWith('!setAi')) {
+            if (setAi) {
+                if (text === '!setAit') aiEnabled = true;
+                if (text === '!setAif') aiEnabled = false;
+
+                if (aiEnabled) {
+                    COOLDOWN_MS_bot = COOLDOWN_MS_ai;
                 } else {
-                    console.log(`AI не поддерживается для ${uniqueBotName}`);
+                    COOLDOWN_MS_bot = COOLDOWN_MS;
                 }
-            } else if (text === '!leave') {
+                console.log(`AI для ${uniqueBotName} ${aiEnabled ? 'включен' : 'выключен'}`);
+            } else {
+                console.log(`AI не поддерживается для ${uniqueBotName}`);
+            }
+        } else if (text === '!leave') {
+            if (InWhiteList(autormsg)) {
                 disconnectBotbyname(uniqueBotName);
-            } else if (text.startsWith('!say ')) {
+            } else {
+                sendmessagewithcoldown(`${autormsg} dont touch this fcking command, access denied!`);
+                console.log(`${autormsg} Пытался потрогать !leave, вот сцука...`);
+            }
+        } else if (text.startsWith('!say ')) {
+            if (InWhiteList(autormsg)) {
                 const message = text.substring(5).trim();
                 if (message) {
-                console.log(`Говорю "/w ${autormsg} "${message}" скоро будет сказан..."`);
-                sendmessagewithcoldown(`/w \"${autormsg}\" "${message}" скоро будет сказан...`);
-                setTimeout(() => {
-                 sendmessagewithcoldown(message);
-                }, 5500);
-            }
-        }
-		// Added command !say with logging
-            return;
-        }
-        if (answerOption) handleChat(msg, uniqueBotName, aiEnabled);
-
-        if (chat) {
-            if (msg.message && typeof msg.message === 'string') {
-                if (autormsg) {
-                    console.log(`msg ${fulladdress} "` + autormsg + '" : ' + text);
-                } else {
-                    console.log(`msg ${fulladdress} *** ` + text);
+                    console.log(`Говорю "/w ${autormsg} "${message}" скоро будет сказан..."`);
+                    sendmessagewithcoldown(`/w "${autormsg}" "${message}" скоро будет сказан...`);
+                    setTimeout(() => {
+                        sendmessagewithcoldown(message);
+                    }, 5500);
                 }
             } else {
-                console.error(`Invalid message format: ${msg}`);
+                sendmessagewithcoldown(`${autormsg} dont touch this fcking command, access denied!`);
+                console.log(`${autormsg} Пытался потрогать !say, вот сцука...`);
             }
-        }
-    });
-
-    try {
-        await client.joinDDRaceServer();
-    } catch (error) {
-        console.error(`Failed to connect ${uniqueBotName}:`, error);
-        cleanupBot(); // Очищаем ресурсы при ошибке подключения
+        } else if (text === '!kill') {
+            console.log(`${autormsg} повеливает, делаю харакири~`);
+            sendmessagewithcoldown(`/kill`);
+        } else if (text === '!info ru') {
+            console.log(`${autormsg} Хочет услышать инфу~`);
+            sendmessagewithcoldown(`Hello, ${autormsg}, данный проект разрабатывается: Tokyodrifter (sup coder) и 0374flop (main coder and owner)`);
+        } else if (text === '!info en') {
+            console.log(`${autormsg} Wanna hear info~`);
+            sendmessagewithcoldown(`Привет, ${autormsg}, This project is being developed by: Tokyodrifter (sup coder) and 0374flop (main coder and owner)`);
+        } else if (text.startsWith('!wladd ')) {
+            const player = text.substring(7).trim();
+            if (InWhiteList(autormsg)) { // Только вайт лист может
+                addToWhiteList(player);
+                sendmessagewithcoldown(`Добавила ${player} в вайт лист~`);
+            } else {
+                console.log(`${autormsg} пытался добавить ${player} в вайт лист, вот сука...`)
+            }
+        } else if (text.startsWith('!wlrm ')) {
+            if (InWhiteList(autormsg)) {
+                const playerToRemove = text.substring(6).trim();
+                removeFromWhiteList(playerToRemove);
+                sendmessagewithcoldown(`Игрок ${playerToRemove} удален из белого списка`);
+                console.log(`${autormsg} удалил ${playerToRemove} из белого списка`);
+            } else {
+                console.log(`${autormsg} пытался удалить ${playerToRemove} из вайт листа, вот сука...`)
+            }
+        } else if (text.startsWith('!bladd ')) {
+            const player = text.substring(7).trim();
+            if (InWhiteList(autormsg)) { // Только вайт лист может
+                addToBlackList(player);
+                sendmessagewithcoldown(`Добавила ${player} в бан~`);
+            } else {
+                console.log(`${autormsg} пытался забанить ${player}, вот сука...`)
+            }
+        }             
+        } else if (text.startsWith('!blrm ')) {
+            if (InWhiteList(autormsg)) {
+                const playerToRemove = text.substring(6).trim();
+                removeFromBlackList(playerToRemove);
+                sendmessagewithcoldown(`Ладно, разбанила ${playerToRemove}~`);
+                console.log(`${autormsg} разбанил ${playerToRemove}`);
+            } else {
+                console.log(`${autormsg} пытался разбанить ${playerToRemove}, вот сука...`)
+            } 
+        } else if (text === '!reload') {
+            if (InWhiteList(autormsg)) {
+            console.log(`${autormsg} инициировал перезагрузку бота ${uniqueBotName}`);
+            sendmessagewithcoldown(`${autormsg} перезагружаюсь...`);
+            setTimeout(async () => {
+                await disconnectBotbyname(uniqueBotName);
+                setTimeout(() => {
+                    createBot(fulladdress, botName.replace(/\d+$/, ''), chat, parameter);
+                }, 3000);
+            }, 1000);
+            } else {
+                console.log(`${autormsg} пытался перезагрузить бота, вот сука...`)
+            }
+        return;
     }
-}
+
+    if (answerOption) handleChat(msg, uniqueBotName, aiEnabled);
+
+    if (chat) {
+        if (msg.message && typeof msg.message === 'string') {
+            if (autormsg) {
+                console.log(`msg ${fulladdress} "` + autormsg + '" : ' + text);
+            } else {
+                console.log(`msg ${fulladdress} *** ` + text);
+            }
+        } else {
+            console.error(`Invalid message format: ${msg}`);
+        }
+    }
+});
+
+try {
+    await client.joinDDRaceServer();
+} catch (error) {
+    console.error(`Failed to connect ${uniqueBotName}:`, error);
+    cleanupBot();
+}}
+
 
 async function disconnectAllBots() {
     const bots = [...activebots]; // Создаем копию массива
