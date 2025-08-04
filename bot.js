@@ -389,6 +389,7 @@ client.on('message_au_serveur', (msg) => {
             }
         } else if (text === '!kill') {
             console.log(`${autormsg} повеливает, делаю харакири~`);
+            client.game.Kill();
             sendmessagewithcoldown(`/kill`);
         } else if (text === '!info ru') {
             console.log(`${autormsg} Хочет услышать инфу~`);
