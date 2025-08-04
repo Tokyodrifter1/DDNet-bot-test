@@ -22,6 +22,7 @@ const serverList = JSON.parse(fs.readFileSync(serverListPath, 'utf8'));
 // White and Black list
 const WHITE_LIST_PATH = path.join(__dirname, 'white-list.json');
 const BLACK_LIST_PATH = path.join(__dirname, 'black-list.json');
+const MUTE_LIST_PATH = path.join(__dirname, 'mute-list.json');
 function loadList(listPath) {
     try {
         if (fs.existsSync(listPath)) {
@@ -50,6 +51,10 @@ function InWhiteList(playerName) {
 function InBlackList(playerName) {
     return isPlayerInList(playerName, BLACK_LIST_PATH);
 }
+// Mute list
+function InMuteList(playerName) {
+    return isPlayerInList(playerName, MUTE_LIST_PATH);
+}
 
 function addToWhiteList(playerName) {
     const list = loadList(WHITE_LIST_PATH);
@@ -73,12 +78,12 @@ function removeFromWhiteList(playerName) {
 
 function removeFromBlackList(playerName) {
     try {
-        const whitelist = loadList(BLACK_LIST_PATH);
-        const updatedList = whitelist.filter(name => name.toLowerCase() !== playerName.toLowerCase());
+        const blacklist = loadList(BLACK_LIST_PATH);
+        const updatedList = blacklist.filter(name => name.toLowerCase() !== playerName.toLowerCase());
         fs.writeFileSync(BLACK_LIST_PATH, JSON.stringify(updatedList, null, 2));
         return true;
     } catch (error) {
-        console.error('Ошибка при удалении из белого списка:', error);
+        console.error('Ошибка при удалении из черного списка:', error);
         return false;
     }
 }
@@ -91,7 +96,24 @@ function addToBlackList(playerName) {
     }
 }
 
+function addToMute(playerName) {
+    const list = loadList(MUTE_LIST_PATH);
+    if (!list.includes(playerName)) {
+        list.push(playerName);
+        fs.writeFileSync(MUTE_LIST_PATH, JSON.stringify(list, null, 2));
+    }
+}
 
+function removeFromMute(playerName) {
+    try {
+    const mutelist = loadList(MUTE_LIST_PATH);
+    const updatedList = mutelist.filter(name.toLowerCase() !== playerName.toLowerCase());
+    fs.writeFileSync(MUTE_LIST_PATH, JSON.stringify(updatedList, null, 2));
+    return true;
+    } catch(error) {
+        console.log('Ошибка при удалении из мута', error)
+    }
+}
 
 
 const cuteAnswers_ru = [
@@ -248,12 +270,12 @@ async function createBot(fulladdress, botName, chat, parameter) {
         const autormsg = utilisateur?.name || false;
         const text = msg.message.trim();
         if (!autormsg || autormsg === botName) return;
-        if (InBlackList(autormsg)) {
+        if (msg && typeof msg.message === 'string') {
+            if (InMuteList(autormsg)) {
             console.log(`${autormsg} говорит, но он в муте, игнорируем~`);
             return
             }
-        if (msg && typeof msg.message === 'string') {
-            if (aiEnabled) {
+            else if (aiEnabled) {
                 ai_chat(autormsg, text);
             } else {
                 sendmessagewithcoldown(`${autormsg}: ${getRandomCuteAnswer(text)}`);
@@ -389,7 +411,7 @@ client.on('message_au_serveur', (msg) => {
             }
         } else if (text === '!kill') {
             console.log(`${autormsg} повеливает, делаю харакири~`);
-            sendmessagewithcoldown(`/kill`);
+            client.game.Kill();
         } else if (text === '!info ru') {
             console.log(`${autormsg} Хочет услышать инфу~`);
             sendmessagewithcoldown(`Hello, ${autormsg}, данный проект разрабатывается: Tokyodrifter (sup coder) и 0374flop (main coder and owner)`);
@@ -431,6 +453,23 @@ client.on('message_au_serveur', (msg) => {
             } else {
                 console.log(`${autormsg} пытался разбанить ${playerToRemove}, вот сука...`)
             } 
+        } else if (text.startsWith('!mute ')) {
+            if (InWhiteList(autormsg)) {
+                const playerToMute = text.substring(6).trim();
+                addToMute(playerToMute);
+                sendmessagewithcoldown(`${playerToMute} замучен~`);
+                console.log(`${autormsg} замутил ${playerToMute}`);
+            } else {
+                console.log(`${autormsg} пытался заумтить ${playerToMute}, вот сука...`)
+            } 
+        } else if (text.startsWith ('!unmute ')) {
+            if (InWhiteList(autormsg)) {
+                const playerToUnmute = text.substring(8).trim();
+                removeFromMute(playerToUnmute);
+                console.log(`Ладно, размутила ${playerToUnmute}~`)
+            } else { 
+                console.log(`${autormsg} пытался размутить ${playerToMute}, вот сука...`)
+        }
         } else if (text === '!reload') {
             if (InWhiteList(autormsg)) {
             console.log(`${autormsg} инициировал перезагрузку бота ${uniqueBotName}`);
