@@ -53,7 +53,7 @@ async function getAIResponse(message, sender, botName) {
         content: `Ты понос.`
       }
     ];
-
+// fff
     memory.push({ role: "user", content: `${sender}: ${message}` });
     if (memory.length > 50) memory.shift();
     await saveMemory(memory);
