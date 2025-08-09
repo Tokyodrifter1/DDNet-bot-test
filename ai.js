@@ -3,7 +3,7 @@ const fs = require('fs').promises;
 const path = require('path');
 
 const openai = new OpenAI({
-  apiKey: "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",
+  apiKey: "sk-or-...",
   baseURL: "https://openrouter.ai/api/v1",
 });
 
