@@ -107,7 +107,7 @@ function addToMute(playerName) {
 function removeFromMute(playerName) {
     try {
     const mutelist = loadList(MUTE_LIST_PATH);
-    const updatedList = mutelist.filter(name.toLowerCase() !== playerName.toLowerCase());
+    const updatedList = mutelist.filter(name => name.toLowerCase() !== playerName.toLowerCase());
     fs.writeFileSync(MUTE_LIST_PATH, JSON.stringify(updatedList, null, 2));
     return true;
     } catch(error) {
@@ -414,10 +414,10 @@ client.on('message_au_serveur', (msg) => {
             client.game.Kill();
         } else if (text === '!info ru') {
             console.log(`${autormsg} Хочет услышать инфу~`);
-            sendmessagewithcoldown(`Hello, ${autormsg}, данный проект разрабатывается: Tokyodrifter (sup coder) и 0374flop (main coder and owner)`);
+            sendmessagewithcoldown(`Привет, ${autormsg}, данный проект разрабатывается: Tokyodrifter (sup coder) и 0374flop (main coder and owner)`);
         } else if (text === '!info en') {
             console.log(`${autormsg} Wanna hear info~`);
-            sendmessagewithcoldown(`Привет, ${autormsg}, This project is being developed by: Tokyodrifter (sup coder) and 0374flop (main coder and owner)`);
+            sendmessagewithcoldown(`Hello, ${autormsg}, This project is being developed by: Tokyodrifter (sup coder) and 0374flop (main coder and owner)`);
         } else if (text.startsWith('!wladd ')) {
             const player = text.substring(7).trim();
             if (InWhiteList(autormsg)) { // Только вайт лист может

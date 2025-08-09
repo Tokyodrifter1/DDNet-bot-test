@@ -6,7 +6,7 @@ const path = require('path');
 const serverListPath = path.join(__dirname, 'DDList.json');
 const serverList = JSON.parse(fs.readFileSync(serverListPath, 'utf8')); // ["26.230.124.233:8303"] local host
 
-const botName = "Urawa";
+const botName = "Urawa beta";
 
 async function main() {
     ai.clearMemoryai();
